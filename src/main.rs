@@ -1,29 +1,41 @@
 use anyhow::Context;
+use clap::Parser;
 use rig::client::{CompletionClient, ProviderClient};
 use rig::completion::Prompt;
 use rig::providers::openai;
+
+mod cli;
+
+use cli::{Cli, Commands};
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     // Load `.env` from the current directory (or parents); ignore if missing.
     dotenvy::dotenv().ok();
 
-    // Use Chat Completions API (`/v1/chat/completions`). Default `openai::Client` uses the
-    // Responses API (`/v1/responses`), which most OpenAI-compatible gateways do not implement (404).
-    let client = openai::CompletionsClient::from_env();
+    let cli = Cli::parse();
 
-    let model = std::env::var("OPENAI_MODEL").context("OPENAI_MODEL not set")?;
+    match cli.command {
+        Commands::Chat {
+            prompt,
+            model,
+            provider,
+        } => {
+            let client = openai::CompletionsClient::from_env();
 
-    let comedian_agent = client
-        .agent(model)
-        .preamble("You are a comedian. You are funny and you like to make people laugh.")
-        .build();
+            let model = std::env::var("OPENAI_MODEL").context("OPENAI_MODEL not set")?;
 
-    let response = comedian_agent
-        .prompt("What is the meaning of life?")
-        .await?;
+            let comedian_agent = client
+                .agent(model)
+                .preamble("You are a comedian. You are funny and you like to make people laugh.")
+                .build();
 
-    println!("{response}");
+            let response = comedian_agent.prompt(prompt).await?;
+
+            println!("{response}");
+        }
+        _ => {}
+    }
 
     Ok(())
 }
